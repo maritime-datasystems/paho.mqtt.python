@@ -1,10 +1,16 @@
 import struct
 import socket
+import sys
 
 try:
     import ssl
 except ImportError:
     ssl = None
+
+
+if sys.version_info[0] >= 3:
+    # define some alias for python2 compatibility
+    unicode = str
 
 
 def create_server_socket():
@@ -20,12 +26,16 @@ def create_server_socket_ssl(*args, **kwargs):
     if ssl is None:
         raise RuntimeError
 
+    ssl_version = ssl.PROTOCOL_TLSv1
+    if hasattr(ssl, "PROTOCOL_TLS"):
+        ssl_version = ssl.PROTOCOL_TLS
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     ssock = ssl.wrap_socket(
         sock, ca_certs="../ssl/all-ca.crt",
         keyfile="../ssl/server.key", certfile="../ssl/server.crt",
-        server_side=True, ssl_version=ssl.PROTOCOL_TLSv1, **kwargs)
+        server_side=True, ssl_version=ssl_version, **kwargs)
     ssock.settimeout(10)
     ssock.bind(('', 1888))
     ssock.listen(5)
@@ -238,7 +248,9 @@ def to_string(packet):
 
 
 def gen_connect(client_id, clean_session=True, keepalive=60, username=None, password=None, will_topic=None, will_qos=0,
-                will_retain=False, will_payload="", proto_name="MQTT", proto_ver=4):
+                will_retain=False, will_payload="", proto_name=None, proto_ver=4):
+    proto_name = b"MQTT" if proto_ver >= 4 else b"MQIsdp"
+
     if client_id is None:
         remaining_length = 12
     else:
@@ -267,7 +279,7 @@ def gen_connect(client_id, clean_session=True, keepalive=60, username=None, pass
     rl = pack_remaining_length(remaining_length)
     packet = struct.pack("!B" + str(len(rl)) + "s", 0x10, rl)
     packet = packet + struct.pack("!H" + str(len(proto_name)) + "sBBH",
-                                  len(proto_name), proto_name.encode('utf-8'),
+                                  len(proto_name), proto_name,
                                   proto_ver, connect_flags, keepalive)
     if client_id is not None:
         packet = packet + struct.pack("!H" + str(len(client_id)) + "s", len(client_id), client_id)
@@ -291,7 +303,8 @@ def gen_connack(resv=0, rc=0):
 
 
 def gen_publish(topic, qos, payload=None, retain=False, dup=False, mid=0):
-    topic = topic.encode('utf-8')
+    if isinstance(topic, unicode):
+        topic = topic.encode('utf-8')
     rl = 2 + len(topic)
     pack_format = "!BBH" + str(len(topic)) + "s"
     if qos > 0:

@@ -1,19 +1,13 @@
 #!/usr/bin/env python
 
-# Test whether a client produces a correct connect and subsequent disconnect.
-
-# The client should connect to port 1888 with keepalive=60, clean session set,
-# and client id 01-con-discon-success
-# The test will send a CONNACK message to the client with rc=0. Upon receiving
-# the CONNACK and verifying that rc=0, the client should send a DISCONNECT
-# message. If rc!=0, the client should exit with an error.
+# Test whether a client connects correctly with a zero length clientid.
 
 import context
 import paho_test
 
 rc = 1
 keepalive = 60
-connect_packet = paho_test.gen_connect("01-con-discon-success", keepalive=keepalive, proto_name="MQTT", proto_ver=4)
+connect_packet = paho_test.gen_connect("", keepalive=keepalive, proto_name="MQTT", proto_ver=4)
 connack_packet = paho_test.gen_connack(rc=0)
 
 disconnect_packet = paho_test.gen_disconnect()
